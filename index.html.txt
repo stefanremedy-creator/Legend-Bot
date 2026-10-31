@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
+<title>C.A. Creative Bot</title>
+<link rel="manifest" href="manifest.json">
+<link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-title"><span>C.A. Creative Bot</span><span class="dot" id="statusDot"></span></div>
+    <div class="brand-owner">Created and owned by Charles Amankwah</div>
+  </div>
+  <div class="live" id="livePrice">—</div>
+  <button id="autoBtn" class="btn-ghost" onclick="toggleAutoFromHeader()" title="Toggle auto-trading">🤖 OFF</button>
+  <button id="themeBtn" class="btn-ghost" onclick="cycleTheme()" title="Change theme">⚙️</button>
+  <button id="soundBtn" class="btn-ghost" onclick="toggleSound()" title="Toggle alert sound">🔇</button>
+  <button id="notifBtn" class="btn-ghost" onclick="requestNotifPerm()">🔔 Alerts</button>
+  <div class="cap">Cap $<input id="capital" type="number" min="1" step="100" value="10000"></div>
+</header>
+
+<div id="banner" class="banner neut">Loading market data...</div>
+
+<section id="signalCard" class="card">
+  <div class="mu">Select a coin above.</div>
+</section>
+
+<section class="card" id="execPanel">
+  <h2>Execute paper trade</h2>
+  <div class="exec-row">
+    <select id="execCoin" aria-label="coin"></select>
+    <span class="live-pill" id="execLive">—</span>
+  </div>
+  <div class="exec-row">
+    <label>Margin $</label>
+    <input id="execSize" type="number" value="100" min="1" step="10" inputmode="decimal">
+    <label>Lev</label>
+    <input id="execLev" type="number" value="3" min="1" max="20" step="1" inputmode="numeric">
+  </div>
+  <div class="preview-row">
+    <span id="notionalPreview">Notional: $300 (3x)</span>
+    <span id="liqPreview">—</span>
+  </div>
+  <div class="exec-row">
+    <input id="execStop" type="number" placeholder="Stop px (auto)" step="any" inputmode="decimal">
+    <input id="execTP" type="number" placeholder="TP px (auto)" step="any" inputmode="decimal">
+  </div>
+  <div class="exec-buttons">
+    <button class="btn-buy" onclick="executeTrade('LONG')">BUY / LONG</button>
+    <button class="btn-sell" onclick="executeTrade('SHORT')">SELL / SHORT</button>
+  </div>
+  <div id="execHint"></div>
+</section>
+
+<div class="tf-tabs" id="tfTabs"></div>
+<div id="chart"></div>
+
+<section class="card" id="autoPanel">
+  <h2>🤖 Auto-trading</h2>
+  <div class="mu">The bot opens and closes paper trades automatically when it sees high-confidence (CERTAIN or CONFIDENT) signals. Manual trades above are untouched. Only one position per coin. Auto-opened trades are tagged 🤖.</div>
+  <div id="autoConfig" style="margin-top:10px">
+    <div class="exec-row">
+      <label>Margin $</label>
+      <input id="autoMargin" type="number" value="50" min="1" step="10" inputmode="decimal">
+      <label>Lev</label>
+      <input id="autoLev" type="number" value="3" min="1" max="20" step="1" inputmode="numeric">
+    </div>
+    <div class="mu" style="font-size:11px;margin-top:4px">Max 5 open auto positions. 15-minute cooldown per coin after auto-close.</div>
+    <button class="btn-buy" style="width:100%;margin-top:10px" onclick="startAuto()">🤖 Start auto-trading</button>
+  </div>
+  <div id="autoRunning" style="display:none;margin-top:10px">
+    <div style="padding:10px;background:var(--card2);border-radius:8px;font-weight:700;color:var(--buy)">
+      🟢 Auto-trading is ON
+    </div>
+    <div id="autoLivePositions" style="margin-top:10px"></div>
+    <div id="autoStatsBox" style="margin-top:12px"></div>
+    <button class="btn-sell" style="width:100%;margin-top:10px" onclick="stopAuto()">🛑 Stop auto-trading</button>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Open paper positions</h2>
+  <div id="positions"><div class="mu">No open positions.</div></div>
+</section>
+
+<section class="card">
+  <h2 onclick="toggleStats()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin:0">
+    <span>Trading performance (all trades)</span><span id="statsToggle">▼</span>
+  </h2>
+  <div id="statsBody" style="margin-top:12px">
+    <div id="statsWrap"><div class="mu">No closed trades yet.</div></div>
+  </div>
+</section>
+
+<section class="card" id="backtestCard">
+  <h2 onclick="toggleBacktest()" style="cursor:pointer;display:flex;justify-content:space-between;align-items:center;margin:0">
+    <span>Backtest</span><span id="backtestToggle">▼</span>
+  </h2>
+  <div id="backtestBody" style="display:none;margin-top:12px">
+    <div class="exec-row">
+      <select id="btCoin" aria-label="backtest asset"></select>
+    </div>
+    <div class="exec-row">
+      <label>Window</label>
+      <select id="btWindow">
+        <option value="30">30 days</option>
+        <option value="60" selected>60 days</option>
+        <option value="90">90 days</option>
+      </select>
+    </div>
+    <div class="exec-row">
+      <label>Margin $</label>
+      <input id="btMargin" type="number" value="100" min="1" inputmode="decimal">
+      <label>Lev</label>
+      <input id="btLev" type="number" value="3" min="1" max="20" inputmode="numeric">
+    </div>
+    <div class="exec-buttons">
+      <button class="btn-ghost" style="flex:1;background:var(--buy);color:#fff;font-weight:700" onclick="runBacktest()">Run backtest</button>
+    </div>
+    <div id="btProgress" style="display:none;margin-top:10px">
+      <div class="mu" id="btProgressText">Running...</div>
+    </div>
+    <div id="btResults" style="margin-top:12px"></div>
+  </div>
+</section>
+
+<section class="card">
+  <h2>Watchlist</h2>
+  <div class="asset-tabs" id="assetTabs"></div>
+  <div class="exec-row" style="margin-bottom:8px">
+    <input id="search" placeholder="filter list..." style="flex:1;background:var(--bg);border:1px solid var(--bd);color:var(--tx);padding:8px 10px;border-radius:8px;font-size:13px;font-family:inherit">
+    <button onclick="clearAllTrades()" class="btn-ghost">Reset stats</button>
+  </div>
+  <div id="watch"><div class="mu">Scanning...</div></div>
+</section>
+
+<footer>
+  <div class="owner">C.A. Creative Bot — created and owned by Charles Amankwah</div>
+  <div class="mu" style="margin-top:4px">Follow me on Instagram <a href="https://instagram.com/charlescreative1" target="_blank" rel="noopener" style="color:var(--buy);text-decoration:none;font-weight:600">@charlescreative1</a></div>
+  <div class="mu">Read-only signals · no wallet · not financial advice</div>
+</footer>
+
+<div class="modal" id="modal" onclick="if(event.target===this)closeModal()">
+  <div class="modal-body">
+    <button class="modal-close" onclick="closeModal()">×</button>
+    <div id="modalContent"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
